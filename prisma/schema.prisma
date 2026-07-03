@@ -189,6 +189,7 @@ model ServicePricing {
   serviceCategoryId String   @map("service_category_id")
   carType           CarType? @map("car_type")
   price             Decimal  @db.Decimal(10, 2)
+  weekendPrice      Decimal? @map("weekend_price") @db.Decimal(10, 2)
   durationMinutes   Int      @map("duration_minutes")
   isActive          Boolean  @default(true) @map("is_active")
   createdAt         DateTime @default(now()) @map("created_at")
