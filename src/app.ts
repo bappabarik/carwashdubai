@@ -9,6 +9,8 @@ import { env } from "./config/env";
 import prismaPlugin from "./plugins/prisma";
 import errorHandlerPlugin from "./plugins/error-handler";
 import healthRoutes from "./modules/health/health.routes";
+import authRoutes from "./modules/auth/auth.routes";
+import authenticatePlugin from "./plugins/authenticate";
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -43,8 +45,11 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(prismaPlugin);
   await app.register(errorHandlerPlugin);
 
+  await app.register(authenticatePlugin);
+
   // Routes
   await app.register(healthRoutes, { prefix: "/api" });
+  await app.register(authRoutes, { prefix: "/api" });
 
   return app;
 }

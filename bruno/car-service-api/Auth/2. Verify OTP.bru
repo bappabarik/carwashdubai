@@ -1,0 +1,27 @@
+meta {
+  name: 2. Verify OTP
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/auth/verify-otp
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "phoneNumber": "+971501234567",
+    "otpCode": "042837",
+    "deviceId": "test-device-001",
+    "deviceType": "android"
+  }
+}
+
+script:post-response {
+  if (res.body.success) {
+    bru.setVar("accessToken", res.body.data.accessToken);
+    bru.setVar("refreshToken", res.body.data.refreshToken);
+  }
+}

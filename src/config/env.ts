@@ -17,8 +17,9 @@ const envSchema = z.object({
   OTP_MAX_ATTEMPTS: z.coerce.number().default(3),
   OTP_RESEND_COOLDOWN_SECONDS: z.coerce.number().default(60),
 
-  SMS_PROVIDER_API_KEY: z.string().optional(),
-  SMS_PROVIDER_SENDER_ID: z.string().optional(),
+  TWILIO_ACCOUNT_SID: z.string().optional(),
+  TWILIO_AUTH_TOKEN: z.string().optional(),
+  TWILIO_FROM_NUMBER: z.string().optional(),
 
   CORS_ORIGIN: z.string().default("*"),
 });

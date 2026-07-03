@@ -1,10 +1,10 @@
 import fastifyPlugin from "fastify-plugin";
-import { FastifyInstance } from "fastify";
+import { FastifyInstance, FastifyError } from "fastify";
 import { ZodError } from "zod";
 import { AppError } from "../utils/errors";
 
 async function errorHandlerPlugin(fastify: FastifyInstance) {
-  fastify.setErrorHandler((error, request, reply) => {
+  fastify.setErrorHandler((error: FastifyError, request, reply) => {
     // Zod validation errors (from route schema validation)
     if (error instanceof ZodError) {
       return reply.status(400).send({
