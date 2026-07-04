@@ -1,0 +1,15 @@
+meta {
+  name: 5. Cancel Booking
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/bookings/{{bookingId}}/cancel
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}

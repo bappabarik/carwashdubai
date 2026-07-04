@@ -1,0 +1,24 @@
+meta {
+  name: 1. Validate Booking
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/bookings/validate
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+body:json {
+  {
+    "addressId": "{{addressId}}",
+    "carId": "{{carId}}",
+    "serviceIds": ["{{adminSubCategoryId}}"],
+    "scheduledDate": "2026-07-10T10:00:00.000Z"
+  }
+}

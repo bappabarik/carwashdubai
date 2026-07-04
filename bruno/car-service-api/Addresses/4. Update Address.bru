@@ -1,0 +1,21 @@
+meta {
+  name: 4. Update Address
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseUrl}}/api/addresses/{{addressId}}
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+body:json {
+  {
+    "addressLine2": "Near Safa Park - Gate 2"
+  }
+}

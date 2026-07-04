@@ -19,6 +19,8 @@ import servicesRoutes from "./modules/services/services.routes";
 import servicesAdminRoutes from "./modules/services/services-admin.routes";
 
 import addressesRoutes from "./modules/addresses/addresses.routes";
+import carsRoutes from "./modules/cars/cars.routes";
+import bookingsRoutes from "./modules/bookings/bookings.routes";
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -65,6 +67,8 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(healthRoutes, { prefix: "/api" });
   await app.register(authRoutes, { prefix: "/api" });
   await app.register(addressesRoutes, { prefix: "/api" });
+  await app.register(carsRoutes, { prefix: "/api" });
+  await app.register(bookingsRoutes, { prefix: "/api" });
 
   // Staff Routes 
   await app.register(staffAuthRoutes, { prefix: "/api" });

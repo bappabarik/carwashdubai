@@ -1,0 +1,33 @@
+meta {
+  name: 2. Create Car
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/cars
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+body:json {
+  {
+    "brand": "Toyota",
+    "model": "Camry",
+    "year": 2022,
+    "color": "White",
+    "plateNumber": "DXB-A-12345",
+    "carType": "sedan",
+    "isDefault": true
+  }
+}
+
+script:post-response {
+  if (res.body.success) {
+    bru.setVar("carId", res.body.data.id);
+  }
+}

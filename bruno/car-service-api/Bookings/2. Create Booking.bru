@@ -1,0 +1,33 @@
+meta {
+  name: 2. Create Booking
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/bookings
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+body:json {
+  {
+    "addressId": "{{addressId}}",
+    "carId": "{{carId}}",
+    "serviceIds": ["{{adminSubCategoryId}}"],
+    "scheduledDate": "2026-07-10T10:00:00.000Z",
+    "scheduledTimeSlot": "10:00-11:00",
+    "paymentMethod": "cash",
+    "notes": "Please ring the bell twice"
+  }
+}
+
+script:post-response {
+  if (res.body.success) {
+    bru.setVar("bookingId", res.body.data.id);
+  }
+}

@@ -1,0 +1,15 @@
+meta {
+  name: 5. Delete Address
+  type: http
+  seq: 5
+}
+
+delete {
+  url: {{baseUrl}}/api/addresses/{{addressId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}

@@ -38,7 +38,7 @@ export async function createAddress(
         isDefault: data.isDefault,
       },
     });
-  });
+  }, { timeout: 10000 });
 }
 
 export async function updateAddress(
@@ -58,7 +58,7 @@ export async function updateAddress(
     }
 
     return tx.address.update({ where: { id }, data });
-  });
+  }, { timeout: 10000 });
 }
 
 export async function deleteAddress(prisma: PrismaClient, userId: string, id: string) {

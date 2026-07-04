@@ -1,5 +1,8 @@
 const DUBAI_UTC_OFFSET_HOURS = 4;
 
+/** Anything Prisma might hand us for a Decimal column, or a plain value. */
+type Numeric = number | string | { toString(): string };
+
 /**
  * Returns true if the given date falls on Fri, Sat, or Sun in Dubai local
  * time (UTC+4, no DST) - our higher-demand pricing window.
@@ -17,13 +20,16 @@ export function isWeekendInDubai(date: Date): boolean {
 /**
  * Resolves the price to charge for a given service pricing row and date.
  * Falls back to the base price if no weekend override is set.
+ *
+ * Accepts Prisma's Decimal type directly (as well as plain number/string),
+ * since price/weekendPrice come straight off a Prisma query result.
  */
 export function resolvePrice(
-  pricing: { price: number | string; weekendPrice: number | string | null },
+  pricing: { price: Numeric; weekendPrice: Numeric | null },
   scheduledDate: Date
 ): number {
-  const base = Number(pricing.price);
-  const weekend = pricing.weekendPrice !== null ? Number(pricing.weekendPrice) : null;
+  const base = Number(pricing.price.toString());
+  const weekend = pricing.weekendPrice !== null ? Number(pricing.weekendPrice.toString()) : null;
 
   if (weekend !== null && isWeekendInDubai(scheduledDate)) {
     return weekend;

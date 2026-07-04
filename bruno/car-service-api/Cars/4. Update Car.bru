@@ -1,0 +1,21 @@
+meta {
+  name: 4. Update Car
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseUrl}}/api/cars/{{carId}}
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+body:json {
+  {
+    "color": "Pearl White"
+  }
+}
