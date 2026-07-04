@@ -1,0 +1,30 @@
+meta {
+  name: 3. Create Sub-Category
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/backoffice/service-categories
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{staffAccessToken}}
+}
+
+body:json {
+  {
+    "parentId": "{{adminTopCategoryId}}",
+    "name": "Pressure Wash",
+    "description": "Exterior pressure wash",
+    "sortOrder": 1
+  }
+}
+
+script:post-response {
+  if (res.body.success) {
+    bru.setVar("adminSubCategoryId", res.body.data.id);
+  }
+}

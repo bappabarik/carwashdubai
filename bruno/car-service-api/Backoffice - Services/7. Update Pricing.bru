@@ -1,0 +1,22 @@
+meta {
+  name: 7. Update Pricing
+  type: http
+  seq: 7
+}
+
+put {
+  url: {{baseUrl}}/api/backoffice/service-pricing/{{sedanPricingId}}
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{staffAccessToken}}
+}
+
+body:json {
+  {
+    "price": 90,
+    "weekendPrice": 105
+  }
+}

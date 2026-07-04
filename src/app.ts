@@ -12,6 +12,14 @@ import healthRoutes from "./modules/health/health.routes";
 import authRoutes from "./modules/auth/auth.routes";
 import authenticatePlugin from "./plugins/authenticate";
 
+import authenticateStaffPlugin from "./plugins/authenticate-staff";
+import staffAuthRoutes from "./modules/staff-auth/staff-auth.routes";
+
+import servicesRoutes from "./modules/services/services.routes";
+import servicesAdminRoutes from "./modules/services/services-admin.routes";
+
+import addressesRoutes from "./modules/addresses/addresses.routes";
+
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
     logger: {
@@ -45,11 +53,23 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(prismaPlugin);
   await app.register(errorHandlerPlugin);
 
+  // user plugins 
   await app.register(authenticatePlugin);
 
-  // Routes
+  // staff plugins 
+  await app.register(authenticateStaffPlugin);
+
+
+
+  // User Routes
   await app.register(healthRoutes, { prefix: "/api" });
   await app.register(authRoutes, { prefix: "/api" });
+  await app.register(addressesRoutes, { prefix: "/api" });
+
+  // Staff Routes 
+  await app.register(staffAuthRoutes, { prefix: "/api" });
+  await app.register(servicesRoutes, { prefix: "/api" });
+  await app.register(servicesAdminRoutes, { prefix: "/api/backoffice" });
 
   return app;
 }

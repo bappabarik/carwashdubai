@@ -1,0 +1,17 @@
+meta {
+  name: 2. List Subcategories
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/services/{{topCategoryId}}/subcategories
+  body: none
+  auth: none
+}
+
+script:post-response {
+  if (res.body.success && res.body.data.length > 0) {
+    bru.setVar("subCategoryId", res.body.data[0].id);
+  }
+}

@@ -64,6 +64,13 @@ enum PaymentMethod {
   wallet
 }
 
+enum StaffRole {
+  admin
+  manager
+  staff
+  calling_agent
+}
+
 // ─────────────────────────────────────────────
 // Auth
 // ─────────────────────────────────────────────
@@ -139,6 +146,43 @@ model Address {
   @@index([userId])
   @@map("addresses")
 }
+
+// ─────────────────────────────────────────────
+// Back office
+// ─────────────────────────────────────────────
+
+model StaffMember {
+     id           String     @id @default(uuid())
+     email        String     @unique
+     passwordHash String     @map("password_hash")
+     name         String
+     phoneNumber  String?    @map("phone_number")
+     role         StaffRole
+     employeeId   String?    @unique @map("employee_id")
+     status       UserStatus @default(active)
+     createdAt    DateTime   @default(now()) @map("created_at")
+     updatedAt    DateTime   @updatedAt @map("updated_at")
+
+     refreshTokens StaffRefreshToken[]
+
+     @@map("staff_members")
+   }
+
+   model StaffRefreshToken {
+     id         String     @id @default(uuid())
+     staffId    String     @map("staff_id")
+     tokenHash  String     @map("token_hash")
+     deviceId   String     @map("device_id")
+     deviceType String     @map("device_type")
+     expiresAt  DateTime   @map("expires_at")
+     revoked    Boolean    @default(false)
+     createdAt  DateTime   @default(now()) @map("created_at")
+
+     staff StaffMember @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+     @@index([staffId])
+     @@map("staff_refresh_tokens")
+   }
 
 model Car {
   id          String   @id @default(uuid())

@@ -1,0 +1,17 @@
+meta {
+  name: 1. List Top-Level Categories
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/services
+  body: none
+  auth: none
+}
+
+script:post-response {
+  if (res.body.success && res.body.data.length > 0) {
+    bru.setVar("topCategoryId", res.body.data[0].id);
+  }
+}

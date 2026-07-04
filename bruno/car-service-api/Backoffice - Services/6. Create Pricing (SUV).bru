@@ -1,0 +1,31 @@
+meta {
+  name: 6. Create Pricing (SUV)
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/api/backoffice/service-pricing
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{staffAccessToken}}
+}
+
+body:json {
+  {
+    "serviceCategoryId": "{{adminSubCategoryId}}",
+    "carType": "suv",
+    "price": 100,
+    "weekendPrice": 120,
+    "durationMinutes": 35
+  }
+}
+
+script:post-response {
+  if (res.body.success) {
+    bru.setVar("suvPricingId", res.body.data.id);
+  }
+}

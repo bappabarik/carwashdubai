@@ -1,0 +1,15 @@
+meta {
+  name: 8. Delete Pricing
+  type: http
+  seq: 8
+}
+
+delete {
+  url: {{baseUrl}}/api/backoffice/service-pricing/{{suvPricingId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{staffAccessToken}}
+}

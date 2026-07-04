@@ -1,0 +1,21 @@
+meta {
+  name: 4. Update Category
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseUrl}}/api/backoffice/service-categories/{{adminSubCategoryId}}
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{staffAccessToken}}
+}
+
+body:json {
+  {
+    "description": "Exterior pressure wash - updated description"
+  }
+}

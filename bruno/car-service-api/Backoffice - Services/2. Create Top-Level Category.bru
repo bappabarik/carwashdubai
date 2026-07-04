@@ -1,0 +1,29 @@
+meta {
+  name: 2. Create Top-Level Category
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/backoffice/service-categories
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{staffAccessToken}}
+}
+
+body:json {
+  {
+    "name": "Car Washing",
+    "description": "All car wash services",
+    "sortOrder": 1
+  }
+}
+
+script:post-response {
+  if (res.body.success) {
+    bru.setVar("adminTopCategoryId", res.body.data.id);
+  }
+}

@@ -1,0 +1,26 @@
+meta {
+  name: 1. Staff Login
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/staff-auth/login
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "email": "admin@example.com",
+    "password": "ChangeMe123!",
+    "deviceId": "bruno-test-device"
+  }
+}
+
+script:post-response {
+  if (res.body.success) {
+    bru.setVar("staffAccessToken", res.body.data.accessToken);
+    bru.setVar("staffRefreshToken", res.body.data.refreshToken);
+  }
+}

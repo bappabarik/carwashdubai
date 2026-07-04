@@ -1,0 +1,24 @@
+meta {
+  name: 2. Staff Refresh Token
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/staff-auth/refresh-token
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "refreshToken": "{{staffRefreshToken}}"
+  }
+}
+
+script:post-response {
+  if (res.body.success) {
+    bru.setVar("staffAccessToken", res.body.data.accessToken);
+    bru.setVar("staffRefreshToken", res.body.data.refreshToken);
+  }
+}

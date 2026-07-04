@@ -1,0 +1,15 @@
+meta {
+  name: 3. Get Category Pricing
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/services/{{subCategoryId}}/pricing?carType=sedan
+  body: none
+  auth: none
+}
+
+params:query {
+  carType: sedan
+}
