@@ -7,6 +7,7 @@ export const validateBookingBodySchema = z.object({
   carId: z.string().uuid().nullable().optional(),
   serviceIds: z.array(z.string().uuid()).min(1, "Select at least one service"),
   scheduledDate: z.string().datetime().nullable().optional(),
+  timeSlotTemplateId: z.string().uuid().nullable().optional(),
 });
 export type ValidateBookingBody = z.infer<typeof validateBookingBodySchema>;
 
@@ -15,7 +16,7 @@ export const createBookingBodySchema = z.object({
   carId: z.string().uuid(),
   serviceIds: z.array(z.string().uuid()).min(1, "Select at least one service"),
   scheduledDate: z.string().datetime(),
-  scheduledTimeSlot: z.string().min(1).max(40),
+  timeSlotTemplateId: z.string().uuid(),
   paymentMethod: paymentMethodEnum,
   notes: z.string().max(500).nullable().optional(),
 });

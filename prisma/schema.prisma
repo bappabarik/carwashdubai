@@ -72,6 +72,26 @@ enum StaffRole {
 }
 
 // ─────────────────────────────────────────────
+// Time slots
+// ─────────────────────────────────────────────
+
+model TimeSlotTemplate {
+  id        String   @id @default(uuid())
+  dayOfWeek Int      @map("day_of_week") // 0 = Sunday ... 6 = Saturday
+  startTime String   @map("start_time") // "09:00"
+  endTime   String   @map("end_time") // "10:00"
+  capacity  Int      @default(1) // how many concurrent bookings this slot can take
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  bookings Booking[]
+
+  @@unique([dayOfWeek, startTime, endTime])
+  @@index([dayOfWeek])
+  @@map("time_slot_templates")
+}
+
+// ─────────────────────────────────────────────
 // Auth
 // ─────────────────────────────────────────────
 
@@ -249,31 +269,34 @@ model ServicePricing {
 // ─────────────────────────────────────────────
 
 model Booking {
-  id              String        @id @default(uuid())
-  bookingNumber   String        @unique @map("booking_number")
-  userId          String        @map("user_id")
-  addressId       String        @map("address_id")
-  carId           String        @map("car_id")
-  status          BookingStatus @default(pending)
-  scheduledDate   DateTime      @map("scheduled_date") @db.Date
-  scheduledSlot   String        @map("scheduled_time_slot")
-  subtotal        Decimal       @db.Decimal(10, 2)
-  discount        Decimal       @default(0) @db.Decimal(10, 2)
-  total           Decimal       @db.Decimal(10, 2)
-  paymentStatus   PaymentStatus @default(pending) @map("payment_status")
-  paymentMethod   PaymentMethod @map("payment_method")
-  notes           String?
-  createdAt       DateTime      @default(now()) @map("created_at")
-  updatedAt       DateTime      @updatedAt @map("updated_at")
+  id                 String        @id @default(uuid())
+  bookingNumber      String        @unique @map("booking_number")
+  userId             String        @map("user_id")
+  addressId          String        @map("address_id")
+  carId              String        @map("car_id")
+  timeSlotTemplateId String        @map("time_slot_template_id")
+  status             BookingStatus @default(pending)
+  scheduledDate      DateTime      @map("scheduled_date") @db.Date
+  scheduledSlot      String        @map("scheduled_time_slot") // display snapshot, e.g. "09:00 - 10:00"
+  subtotal           Decimal       @db.Decimal(10, 2)
+  discount           Decimal       @default(0) @db.Decimal(10, 2)
+  total              Decimal       @db.Decimal(10, 2)
+  paymentStatus      PaymentStatus @default(pending) @map("payment_status")
+  paymentMethod      PaymentMethod @map("payment_method")
+  notes              String?
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
 
-  user    User    @relation(fields: [userId], references: [id])
-  address Address @relation(fields: [addressId], references: [id])
-  car     Car     @relation(fields: [carId], references: [id])
-  items   BookingItem[]
+  user             User             @relation(fields: [userId], references: [id])
+  address          Address          @relation(fields: [addressId], references: [id])
+  car              Car              @relation(fields: [carId], references: [id])
+  timeSlotTemplate TimeSlotTemplate @relation(fields: [timeSlotTemplateId], references: [id])
+  items            BookingItem[]
 
   @@index([userId])
   @@index([status])
   @@index([scheduledDate])
+  @@index([scheduledDate, timeSlotTemplateId])
   @@map("bookings")
 }
 

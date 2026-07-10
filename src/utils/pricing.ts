@@ -12,9 +12,14 @@ type Numeric = number | string | { toString(): string };
  * timezone (e.g. Render/Railway default to UTC).
  */
 export function isWeekendInDubai(date: Date): boolean {
-  const dubaiTime = new Date(date.getTime() + DUBAI_UTC_OFFSET_HOURS * 60 * 60 * 1000);
-  const day = dubaiTime.getUTCDay(); // 0 = Sun, 5 = Fri, 6 = Sat
+  const day = getDubaiDayOfWeek(date);
   return day === 0 || day === 5 || day === 6;
+}
+
+/** Returns the day of week (0 = Sun ... 6 = Sat) in Dubai local time. */
+export function getDubaiDayOfWeek(date: Date): number {
+  const dubaiTime = new Date(date.getTime() + DUBAI_UTC_OFFSET_HOURS * 60 * 60 * 1000);
+  return dubaiTime.getUTCDay();
 }
 
 /**

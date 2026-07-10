@@ -1,6 +1,7 @@
 import { PrismaClient, CarType, BookingStatus } from "@prisma/client";
 import { NotFoundError, BadRequestError, ForbiddenError } from "../../utils/errors";
 import { resolvePrice } from "../../utils/pricing";
+import { assertSlotHasCapacity } from "../time-slots/time-slots.service";
 import { generateBookingNumber } from "../../utils/bookingNumber";
 import type { CreateBookingBody, ValidateBookingBody, ListBookingsQuery } from "./bookings.schema";
 
@@ -74,6 +75,7 @@ export interface ValidateBookingResult {
   items: ResolvedItem[];
   subtotal: number;
   total: number;
+  slotAvailable: boolean | null; // null = not enough info yet to check (no slot/date given)
 }
 
 export async function validateBooking(
@@ -97,10 +99,20 @@ export async function validateBooking(
     if (!car) throw new NotFoundError("Car not found");
   }
 
+  let slotAvailable: boolean | null = null;
+  if (data.timeSlotTemplateId && data.scheduledDate) {
+    try {
+      await assertSlotHasCapacity(prisma, data.timeSlotTemplateId, new Date(data.scheduledDate));
+      slotAvailable = true;
+    } catch {
+      slotAvailable = false;
+    }
+  }
+
   // Can't price anything without knowing the car type - return early with
   // just the missing-field flags so the app can prompt the user.
   if (!car) {
-    return { addressRequired, carRequired, items: [], subtotal: 0, total: 0 };
+    return { addressRequired, carRequired, items: [], subtotal: 0, total: 0, slotAvailable };
   }
 
   const scheduledDate = data.scheduledDate ? new Date(data.scheduledDate) : new Date();
@@ -111,7 +123,7 @@ export async function validateBooking(
     scheduledDate
   );
 
-  return { addressRequired, carRequired, items, subtotal, total: subtotal };
+  return { addressRequired, carRequired, items, subtotal, total: subtotal, slotAvailable };
 }
 
 export async function createBooking(
@@ -140,6 +152,16 @@ export async function createBooking(
     scheduledDate
   );
 
+  // Re-checked here even though the app should only offer available slots -
+  // someone else could have taken the last spot between the app fetching
+  // availability and this request landing.
+  const { startTime, endTime } = await assertSlotHasCapacity(
+    prisma,
+    data.timeSlotTemplateId,
+    scheduledDate
+  );
+  const scheduledSlotDisplay = `${startTime} - ${endTime}`;
+
   const bookingNumber = generateBookingNumber();
 
   const createdBookingId = await prisma.$transaction(
@@ -150,9 +172,10 @@ export async function createBooking(
           userId,
           addressId: data.addressId,
           carId: data.carId,
+          timeSlotTemplateId: data.timeSlotTemplateId,
           status: "pending",
           scheduledDate,
-          scheduledSlot: data.scheduledTimeSlot,
+          scheduledSlot: scheduledSlotDisplay,
           subtotal,
           discount: 0,
           total: subtotal,

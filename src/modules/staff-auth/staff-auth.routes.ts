@@ -8,7 +8,7 @@ import {
   staffRefreshTokenResponseSchema,
   genericSuccessResponseSchema,
 } from "./staff-auth.schema";
-import { staffLogin, refreshStaffAccessToken, staffLogout } from "./staff-auth.service";
+import { staffLogin, refreshStaffAccessToken, staffLogout, getStaffProfile } from "./staff-auth.service";
 
 export default async function staffAuthRoutes(fastify: FastifyInstance) {
   const app = fastify.withTypeProvider<ZodTypeProvider>();
@@ -27,6 +27,18 @@ export default async function staffAuthRoutes(fastify: FastifyInstance) {
       return reply.send({ success: true as const, data: result });
     }
   );
+
+   app.get(
+    "/staff-auth/me",
+    { onRequest: [fastify.authenticateStaff] },
+    async (request, reply) => {
+      const staff = await getStaffProfile(fastify.prisma, request.staffId);
+      // if (!staff) throw new NotFoundError("Staff account not found");
+
+      return reply.send({ success: true, data: staff });
+    }
+  );
+
 
   app.post(
     "/staff-auth/refresh-token",

@@ -8,7 +8,7 @@ import {
   verifyStaffRefreshToken,
   hashStaffToken,
 } from "../../utils/staffJwt";
-import { UnauthorizedError } from "../../utils/errors";
+import { NotFoundError, UnauthorizedError } from "../../utils/errors";
 import jwt from "jsonwebtoken";
 
 function msFromExpiry(expiresIn: string): number {
@@ -24,6 +24,10 @@ export interface StaffLoginResult {
   accessToken: string;
   refreshToken: string;
   staff: { id: string; email: string; name: string; role: string };
+}
+
+export interface getStaffProfileResult {
+  id: string; email: string; phoneNumber: string | null; name: string; role: string; employeeId: string | null;
 }
 
 export async function staffLogin(
@@ -55,6 +59,32 @@ export async function staffLogin(
     accessToken,
     refreshToken,
     staff: { id: staff.id, email: staff.email, name: staff.name, role: staff.role },
+  };
+}
+
+export async function getStaffProfile(
+  prisma: PrismaClient,
+  staffId: string
+): Promise<getStaffProfileResult> {
+
+  const staff = await prisma.staffMember.findUnique({
+    where: { id: staffId },
+    select: { id: true, email: true, name: true, role: true, phoneNumber: true, employeeId: true, status: true },
+  });
+
+  // Same error for "no such account" and "wrong password" - don't leak
+  // which one it was.
+  if (!staff || staff.status === "blocked") {
+    throw new NotFoundError("Staff Not Found!");
+  }
+
+  return {
+     id: staff.id, 
+     email: staff.email,
+     phoneNumber: staff.phoneNumber,
+     name: staff.name, 
+     role: staff.role,
+     employeeId: staff.employeeId
   };
 }
 
