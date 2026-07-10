@@ -3,9 +3,8 @@ import { NotFoundError, ConflictError } from "../../utils/errors";
 import type { ListAllBookingsQuery } from "./bookings-admin.schema";
 
 const ADMIN_BOOKING_INCLUDE = {
-  items: { include: { serviceCategory: true } },
   address: true,
-  car: true,
+  cars: { include: { car: true, items: { include: { serviceCategory: true } } } },
   user: { select: { id: true, phoneNumber: true, name: true } },
 } as const;
 

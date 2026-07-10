@@ -2,10 +2,22 @@ import { z } from "zod";
 
 const paymentMethodEnum = z.enum(["cash", "card", "wallet"]);
 
+// One car within a booking: which car, and which services for it.
+const carGroupSchema = z.object({
+  carId: z.string().uuid(),
+  serviceIds: z.array(z.string().uuid()).min(1, "Select at least one service for this car"),
+});
+
+function assertUniqueCarIds(cars: { carId: string }[]) {
+  const ids = cars.map((c) => c.carId);
+  return new Set(ids).size === ids.length;
+}
+
 export const validateBookingBodySchema = z.object({
   addressId: z.string().uuid().nullable().optional(),
-  carId: z.string().uuid().nullable().optional(),
-  serviceIds: z.array(z.string().uuid()).min(1, "Select at least one service"),
+  cars: z.array(carGroupSchema).min(1, "Add at least one car").refine(assertUniqueCarIds, {
+    message: "Each car can only appear once per booking",
+  }),
   scheduledDate: z.string().datetime().nullable().optional(),
   timeSlotTemplateId: z.string().uuid().nullable().optional(),
 });
@@ -13,8 +25,9 @@ export type ValidateBookingBody = z.infer<typeof validateBookingBodySchema>;
 
 export const createBookingBodySchema = z.object({
   addressId: z.string().uuid(),
-  carId: z.string().uuid(),
-  serviceIds: z.array(z.string().uuid()).min(1, "Select at least one service"),
+  cars: z.array(carGroupSchema).min(1, "Add at least one car").refine(assertUniqueCarIds, {
+    message: "Each car can only appear once per booking",
+  }),
   scheduledDate: z.string().datetime(),
   timeSlotTemplateId: z.string().uuid(),
   paymentMethod: paymentMethodEnum,

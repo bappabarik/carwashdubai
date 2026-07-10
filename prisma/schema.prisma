@@ -217,7 +217,7 @@ model Car {
   createdAt   DateTime @default(now()) @map("created_at")
 
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  bookings Booking[]
+  bookingCars BookingCar[]
 
   @@index([userId])
   @@map("cars")
@@ -273,7 +273,6 @@ model Booking {
   bookingNumber      String        @unique @map("booking_number")
   userId             String        @map("user_id")
   addressId          String        @map("address_id")
-  carId              String        @map("car_id")
   timeSlotTemplateId String        @map("time_slot_template_id")
   status             BookingStatus @default(pending)
   scheduledDate      DateTime      @map("scheduled_date") @db.Date
@@ -289,9 +288,8 @@ model Booking {
 
   user             User             @relation(fields: [userId], references: [id])
   address          Address          @relation(fields: [addressId], references: [id])
-  car              Car              @relation(fields: [carId], references: [id])
   timeSlotTemplate TimeSlotTemplate @relation(fields: [timeSlotTemplateId], references: [id])
-  items            BookingItem[]
+  cars             BookingCar[]
 
   @@index([userId])
   @@index([status])
@@ -300,16 +298,31 @@ model Booking {
   @@map("bookings")
 }
 
-model BookingItem {
-  id                String   @id @default(uuid())
-  bookingId         String   @map("booking_id")
-  serviceCategoryId String   @map("service_category_id")
-  price             Decimal  @db.Decimal(10, 2)
-  durationMinutes   Int      @map("duration_minutes")
+model BookingCar {
+  id              String  @id @default(uuid())
+  bookingId       String  @map("booking_id")
+  carId           String  @map("car_id")
+  subtotal        Decimal @db.Decimal(10, 2)
+  durationMinutes Int     @map("duration_minutes")
 
-  booking         Booking         @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  serviceCategory ServiceCategory @relation(fields: [serviceCategoryId], references: [id])
+  booking Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  car     Car           @relation(fields: [carId], references: [id])
+  items   BookingItem[]
 
   @@index([bookingId])
+  @@map("booking_cars")
+}
+
+model BookingItem {
+  id                String  @id @default(uuid())
+  bookingCarId      String  @map("booking_car_id")
+  serviceCategoryId String  @map("service_category_id")
+  price             Decimal @db.Decimal(10, 2)
+  durationMinutes   Int     @map("duration_minutes")
+
+  bookingCar      BookingCar      @relation(fields: [bookingCarId], references: [id], onDelete: Cascade)
+  serviceCategory ServiceCategory @relation(fields: [serviceCategoryId], references: [id])
+
+  @@index([bookingCarId])
   @@map("booking_items")
 }

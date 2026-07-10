@@ -12,18 +12,22 @@ interface ResolvedItem {
   durationMinutes: number;
 }
 
-/**
- * Looks up the correct price for each requested service category, given the
- * car's type and the scheduled date (for weekend pricing). Prefers a
- * car-type-specific pricing row over a generic (carType: null) one.
- * Throws if any service has no active pricing at all for this car type.
- */
-async function resolveBookingItems(
+interface ResolvedCarGroup {
+  carId: string;
+  brand: string;
+  model: string;
+  carType: CarType;
+  items: ResolvedItem[];
+  subtotal: number;
+  durationMinutes: number;
+}
+
+async function resolveItemsForCar(
   prisma: PrismaClient,
   serviceIds: string[],
   carType: CarType,
   scheduledDate: Date
-): Promise<{ items: ResolvedItem[]; subtotal: number }> {
+): Promise<{ items: ResolvedItem[]; subtotal: number; durationMinutes: number }> {
   const categories = await prisma.serviceCategory.findMany({
     where: { id: { in: serviceIds }, isActive: true },
   });
@@ -66,16 +70,51 @@ async function resolveBookingItems(
   }
 
   const subtotal = items.reduce((sum, item) => sum + item.price, 0);
-  return { items, subtotal };
+  const durationMinutes = items.reduce((sum, item) => sum + item.durationMinutes, 0);
+  return { items, subtotal, durationMinutes };
+}
+
+async function resolveCarGroups(
+  prisma: PrismaClient,
+  userId: string,
+  cars: { carId: string; serviceIds: string[] }[],
+  scheduledDate: Date
+): Promise<{ carGroups: ResolvedCarGroup[]; subtotal: number }> {
+  const carGroups: ResolvedCarGroup[] = [];
+
+  for (const carInput of cars) {
+    const car = await prisma.car.findFirst({ where: { id: carInput.carId, userId } });
+    if (!car) throw new NotFoundError(`Car not found`);
+
+    const { items, subtotal, durationMinutes } = await resolveItemsForCar(
+      prisma,
+      carInput.serviceIds,
+      car.carType,
+      scheduledDate
+    );
+
+    carGroups.push({
+      carId: car.id,
+      brand: car.brand,
+      model: car.model,
+      carType: car.carType,
+      items,
+      subtotal,
+      durationMinutes,
+    });
+  }
+
+  const subtotal = carGroups.reduce((sum, group) => sum + group.subtotal, 0);
+  return { carGroups, subtotal };
 }
 
 export interface ValidateBookingResult {
   addressRequired: boolean;
-  carRequired: boolean;
-  items: ResolvedItem[];
+  carGroups: ResolvedCarGroup[];
   subtotal: number;
   total: number;
-  slotAvailable: boolean | null; // null = not enough info yet to check (no slot/date given)
+  totalDurationMinutes: number;
+  slotAvailable: boolean | null;
 }
 
 export async function validateBooking(
@@ -84,19 +123,12 @@ export async function validateBooking(
   data: ValidateBookingBody
 ): Promise<ValidateBookingResult> {
   const addressRequired = !data.addressId;
-  const carRequired = !data.carId;
 
   if (data.addressId) {
     const address = await prisma.address.findFirst({
       where: { id: data.addressId, userId },
     });
     if (!address) throw new NotFoundError("Address not found");
-  }
-
-  let car = null;
-  if (data.carId) {
-    car = await prisma.car.findFirst({ where: { id: data.carId, userId } });
-    if (!car) throw new NotFoundError("Car not found");
   }
 
   let slotAvailable: boolean | null = null;
@@ -109,21 +141,18 @@ export async function validateBooking(
     }
   }
 
-  // Can't price anything without knowing the car type - return early with
-  // just the missing-field flags so the app can prompt the user.
-  if (!car) {
-    return { addressRequired, carRequired, items: [], subtotal: 0, total: 0, slotAvailable };
-  }
-
   const scheduledDate = data.scheduledDate ? new Date(data.scheduledDate) : new Date();
-  const { items, subtotal } = await resolveBookingItems(
-    prisma,
-    data.serviceIds,
-    car.carType,
-    scheduledDate
-  );
+  const { carGroups, subtotal } = await resolveCarGroups(prisma, userId, data.cars, scheduledDate);
+  const totalDurationMinutes = carGroups.reduce((sum, g) => sum + g.durationMinutes, 0);
 
-  return { addressRequired, carRequired, items, subtotal, total: subtotal, slotAvailable };
+  return {
+    addressRequired,
+    carGroups,
+    subtotal,
+    total: subtotal,
+    totalDurationMinutes,
+    slotAvailable,
+  };
 }
 
 export async function createBooking(
@@ -134,27 +163,13 @@ export async function createBooking(
   const address = await prisma.address.findFirst({ where: { id: data.addressId, userId } });
   if (!address) throw new NotFoundError("Address not found");
 
-  const car = await prisma.car.findFirst({ where: { id: data.carId, userId } });
-  if (!car) throw new NotFoundError("Car not found");
-
   const scheduledDate = new Date(data.scheduledDate);
   if (scheduledDate.getTime() < Date.now() - 24 * 60 * 60 * 1000) {
-    // Small grace window rather than a strict ">= now" check, since the
-    // client's "today" and the server's "now" can differ by a few hours
-    // around midnight depending on timezone.
     throw new BadRequestError("Scheduled date can't be in the past");
   }
 
-  const { items, subtotal } = await resolveBookingItems(
-    prisma,
-    data.serviceIds,
-    car.carType,
-    scheduledDate
-  );
+  const { carGroups, subtotal } = await resolveCarGroups(prisma, userId, data.cars, scheduledDate);
 
-  // Re-checked here even though the app should only offer available slots -
-  // someone else could have taken the last spot between the app fetching
-  // availability and this request landing.
   const { startTime, endTime } = await assertSlotHasCapacity(
     prisma,
     data.timeSlotTemplateId,
@@ -171,7 +186,6 @@ export async function createBooking(
           bookingNumber,
           userId,
           addressId: data.addressId,
-          carId: data.carId,
           timeSlotTemplateId: data.timeSlotTemplateId,
           status: "pending",
           scheduledDate,
@@ -185,27 +199,37 @@ export async function createBooking(
         },
       });
 
-      await tx.bookingItem.createMany({
-        data: items.map((item) => ({
-          bookingId: booking.id,
-          serviceCategoryId: item.serviceCategoryId,
-          price: item.price,
-          durationMinutes: item.durationMinutes,
-        })),
-      });
+      for (const group of carGroups) {
+        const bookingCar = await tx.bookingCar.create({
+          data: {
+            bookingId: booking.id,
+            carId: group.carId,
+            subtotal: group.subtotal,
+            durationMinutes: group.durationMinutes,
+          },
+        });
+
+        await tx.bookingItem.createMany({
+          data: group.items.map((item) => ({
+            bookingCarId: bookingCar.id,
+            serviceCategoryId: item.serviceCategoryId,
+            price: item.price,
+            durationMinutes: item.durationMinutes,
+          })),
+        });
+      }
 
       return booking.id;
     },
-    { timeout: 15000 } // generous headroom for Neon cold-start / pooled-connection latency
+    { timeout: 15000 }
   );
 
-  // Fetched outside the transaction on purpose: this is a read of data that's
-  // already committed, so it doesn't need to be atomic with the writes above.
-  // Keeping it out of the transaction also keeps the transaction itself short,
-  // which is what actually avoids the timeout - not just raising the limit.
   return prisma.booking.findUniqueOrThrow({
     where: { id: createdBookingId },
-    include: { items: { include: { serviceCategory: true } }, address: true, car: true },
+    include: {
+      address: true,
+      cars: { include: { car: true, items: { include: { serviceCategory: true } } } },
+    },
   });
 }
 
@@ -222,7 +246,10 @@ export async function listBookings(
       orderBy: { createdAt: "desc" },
       skip: (query.page - 1) * query.pageSize,
       take: query.pageSize,
-      include: { items: { include: { serviceCategory: true } }, address: true, car: true },
+      include: {
+        address: true,
+        cars: { include: { car: true, items: { include: { serviceCategory: true } } } },
+      },
     }),
     prisma.booking.count({ where }),
   ]);
@@ -233,7 +260,10 @@ export async function listBookings(
 export async function getBookingById(prisma: PrismaClient, userId: string, id: string) {
   const booking = await prisma.booking.findFirst({
     where: { id, userId },
-    include: { items: { include: { serviceCategory: true } }, address: true, car: true },
+    include: {
+      address: true,
+      cars: { include: { car: true, items: { include: { serviceCategory: true } } } },
+    },
   });
   if (!booking) throw new NotFoundError("Booking not found");
   return booking;
