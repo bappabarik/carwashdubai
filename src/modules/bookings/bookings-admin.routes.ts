@@ -40,7 +40,13 @@ export default async function bookingsAdminRoutes(fastify: FastifyInstance) {
       schema: { params: bookingIdParamsSchema, body: updateBookingStatusBodySchema },
     },
     async (request, reply) => {
-      const booking = await updateBookingStatus(fastify.prisma, request.params.id, request.body.status);
+      const booking = await updateBookingStatus(
+        fastify.prisma,
+        request.params.id,
+        request.body.status,
+        request.staffId,
+        request.body.note
+      );
       return reply.send({ success: true, data: booking });
     }
   );

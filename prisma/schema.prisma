@@ -46,9 +46,16 @@ enum BookingStatus {
   pending
   confirmed
   staff_assigned
+  arriving
   in_progress
   completed
   cancelled
+}
+
+enum CancellationRequestStatus {
+  pending
+  approved
+  rejected
 }
 
 enum PaymentStatus {
@@ -183,7 +190,9 @@ model StaffMember {
      createdAt    DateTime   @default(now()) @map("created_at")
      updatedAt    DateTime   @updatedAt @map("updated_at")
 
-     refreshTokens StaffRefreshToken[]
+     refreshTokens StaffRefreshToken[] 
+     statusEvents        BookingStatusEvent[]
+     cancellationReviews CancellationRequest[]
 
      @@map("staff_members")
    }
@@ -290,6 +299,8 @@ model Booking {
   address          Address          @relation(fields: [addressId], references: [id])
   timeSlotTemplate TimeSlotTemplate @relation(fields: [timeSlotTemplateId], references: [id])
   cars             BookingCar[]
+  statusEvents        BookingStatusEvent[]
+  cancellationRequest CancellationRequest?
 
   @@index([userId])
   @@index([status])
@@ -325,4 +336,39 @@ model BookingItem {
 
   @@index([bookingCarId])
   @@map("booking_items")
+}
+
+// Append-only log of every status change on a booking - this is what
+// powers the "timeline" view for both customers and admin, not just the
+// current status field.
+model BookingStatusEvent {
+  id               String        @id @default(uuid())
+  bookingId        String        @map("booking_id")
+  status           BookingStatus
+  note             String?
+  changedByStaffId String?       @map("changed_by_staff_id")
+  createdAt        DateTime      @default(now()) @map("created_at")
+
+  booking        Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  changedByStaff StaffMember? @relation(fields: [changedByStaffId], references: [id])
+
+  @@index([bookingId])
+  @@map("booking_status_events")
+}
+
+model CancellationRequest {
+  id                String                    @id @default(uuid())
+  bookingId         String                    @unique @map("booking_id")
+  reason            String
+  customReason      String?                   @map("custom_reason")
+  status            CancellationRequestStatus @default(pending)
+  reviewedByStaffId String?                   @map("reviewed_by_staff_id")
+  reviewNote        String?                   @map("review_note")
+  createdAt         DateTime                  @default(now()) @map("created_at")
+  reviewedAt        DateTime?                 @map("reviewed_at")
+
+  booking         Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  reviewedByStaff StaffMember? @relation(fields: [reviewedByStaffId], references: [id])
+
+  @@map("cancellation_requests")
 }

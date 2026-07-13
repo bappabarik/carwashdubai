@@ -1,9 +1,14 @@
 import { PrismaClient, CarType, BookingStatus } from "@prisma/client";
-import { NotFoundError, BadRequestError, ForbiddenError } from "../../utils/errors";
+import { NotFoundError, BadRequestError, ForbiddenError, ConflictError } from "../../utils/errors";
 import { resolvePrice } from "../../utils/pricing";
 import { assertSlotHasCapacity } from "../time-slots/time-slots.service";
 import { generateBookingNumber } from "../../utils/bookingNumber";
-import type { CreateBookingBody, ValidateBookingBody, ListBookingsQuery } from "./bookings.schema";
+import type {
+  CreateBookingBody,
+  ValidateBookingBody,
+  ListBookingsQuery,
+  RequestCancellationBody,
+} from "./bookings.schema";
 
 interface ResolvedItem {
   serviceCategoryId: string;
@@ -21,6 +26,13 @@ interface ResolvedCarGroup {
   subtotal: number;
   durationMinutes: number;
 }
+
+const BOOKING_DETAIL_INCLUDE = {
+  address: true,
+  cars: { include: { car: true, items: { include: { serviceCategory: true } } } },
+  statusEvents: { orderBy: { createdAt: "asc" as const } },
+  cancellationRequest: true,
+};
 
 async function resolveItemsForCar(
   prisma: PrismaClient,
@@ -199,6 +211,11 @@ export async function createBooking(
         },
       });
 
+      // First timeline entry - every booking's history starts here.
+      await tx.bookingStatusEvent.create({
+        data: { bookingId: booking.id, status: "pending" },
+      });
+
       for (const group of carGroups) {
         const bookingCar = await tx.bookingCar.create({
           data: {
@@ -226,10 +243,7 @@ export async function createBooking(
 
   return prisma.booking.findUniqueOrThrow({
     where: { id: createdBookingId },
-    include: {
-      address: true,
-      cars: { include: { car: true, items: { include: { serviceCategory: true } } } },
-    },
+    include: BOOKING_DETAIL_INCLUDE,
   });
 }
 
@@ -246,10 +260,7 @@ export async function listBookings(
       orderBy: { createdAt: "desc" },
       skip: (query.page - 1) * query.pageSize,
       take: query.pageSize,
-      include: {
-        address: true,
-        cars: { include: { car: true, items: { include: { serviceCategory: true } } } },
-      },
+      include: BOOKING_DETAIL_INCLUDE,
     }),
     prisma.booking.count({ where }),
   ]);
@@ -260,26 +271,60 @@ export async function listBookings(
 export async function getBookingById(prisma: PrismaClient, userId: string, id: string) {
   const booking = await prisma.booking.findFirst({
     where: { id, userId },
-    include: {
-      address: true,
-      cars: { include: { car: true, items: { include: { serviceCategory: true } } } },
-    },
+    include: BOOKING_DETAIL_INCLUDE,
   });
   if (!booking) throw new NotFoundError("Booking not found");
   return booking;
 }
 
-const CANCELLABLE_STATUSES: BookingStatus[] = ["pending", "confirmed"];
+// Statuses a customer is allowed to *request* cancellation from - once a
+// wash is actually in progress, cancellation is an ops decision, not
+// self-service.
+const CANCELLATION_REQUESTABLE_STATUSES: BookingStatus[] = [
+  "pending",
+  "confirmed",
+  "staff_assigned",
+  "arriving",
+];
 
-export async function cancelBooking(prisma: PrismaClient, userId: string, id: string) {
-  const booking = await prisma.booking.findFirst({ where: { id, userId } });
+export async function requestCancellation(
+  prisma: PrismaClient,
+  userId: string,
+  id: string,
+  data: RequestCancellationBody
+) {
+  const booking = await prisma.booking.findFirst({
+    where: { id, userId },
+    include: { cancellationRequest: true },
+  });
   if (!booking) throw new NotFoundError("Booking not found");
 
-  if (!CANCELLABLE_STATUSES.includes(booking.status)) {
+  if (!CANCELLATION_REQUESTABLE_STATUSES.includes(booking.status)) {
     throw new ForbiddenError(
       `Booking can't be cancelled once it's ${booking.status.replace("_", " ")}`
     );
   }
 
-  return prisma.booking.update({ where: { id }, data: { status: "cancelled" } });
+  if (booking.cancellationRequest && booking.cancellationRequest.status === "pending") {
+    throw new ConflictError("You already have a cancellation request pending review for this booking");
+  }
+
+  // If a previous request was rejected, allow a fresh one - upsert rather
+  // than a plain create, since bookingId is unique on this table.
+  return prisma.cancellationRequest.upsert({
+    where: { bookingId: id },
+    create: {
+      bookingId: id,
+      reason: data.reason,
+      customReason: data.customReason ?? null,
+    },
+    update: {
+      reason: data.reason,
+      customReason: data.customReason ?? null,
+      status: "pending",
+      reviewedByStaffId: null,
+      reviewNote: null,
+      reviewedAt: null,
+    },
+  });
 }

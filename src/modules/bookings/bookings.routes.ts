@@ -5,6 +5,7 @@ import {
   createBookingBodySchema,
   bookingIdParamsSchema,
   listBookingsQuerySchema,
+  requestCancellationBodySchema,
   genericSuccessResponseSchema,
 } from "./bookings.schema";
 import {
@@ -12,7 +13,7 @@ import {
   createBooking,
   listBookings,
   getBookingById,
-  cancelBooking,
+  requestCancellation,
 } from "./bookings.service";
 
 export default async function bookingsRoutes(fastify: FastifyInstance) {
@@ -55,15 +56,24 @@ export default async function bookingsRoutes(fastify: FastifyInstance) {
     }
   );
 
+  // Note: this no longer cancels immediately - it creates a cancellation
+  // request that admin/ops reviews and actions. See requestCancellation.
   app.post(
     "/bookings/:id/cancel",
     {
       onRequest: guard.onRequest,
-      schema: { params: bookingIdParamsSchema, response: { 200: genericSuccessResponseSchema } },
+      schema: {
+        params: bookingIdParamsSchema,
+        body: requestCancellationBodySchema,
+        response: { 200: genericSuccessResponseSchema },
+      },
     },
     async (request, reply) => {
-      await cancelBooking(fastify.prisma, request.userId, request.params.id);
-      return reply.send({ success: true as const, message: "Booking cancelled" });
+      await requestCancellation(fastify.prisma, request.userId, request.params.id, request.body);
+      return reply.send({
+        success: true as const,
+        message: "Cancellation request submitted for review",
+      });
     }
   );
 }

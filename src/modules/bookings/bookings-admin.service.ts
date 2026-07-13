@@ -6,6 +6,13 @@ const ADMIN_BOOKING_INCLUDE = {
   address: true,
   cars: { include: { car: true, items: { include: { serviceCategory: true } } } },
   user: { select: { id: true, phoneNumber: true, name: true } },
+  statusEvents: {
+    orderBy: { createdAt: "asc" as const },
+    include: { changedByStaff: { select: { id: true, name: true } } },
+  },
+  cancellationRequest: {
+    include: { reviewedByStaff: { select: { id: true, name: true } } },
+  },
 } as const;
 
 // Defines which status changes are legal - prevents e.g. jumping straight
@@ -13,7 +20,8 @@ const ADMIN_BOOKING_INCLUDE = {
 const VALID_TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
   pending: ["confirmed", "cancelled"],
   confirmed: ["staff_assigned", "cancelled"],
-  staff_assigned: ["in_progress", "cancelled"],
+  staff_assigned: ["arriving", "cancelled"],
+  arriving: ["in_progress", "cancelled"],
   in_progress: ["completed", "cancelled"],
   completed: [],
   cancelled: [],
@@ -51,7 +59,9 @@ export async function getBookingByIdAdmin(prisma: PrismaClient, id: string) {
 export async function updateBookingStatus(
   prisma: PrismaClient,
   id: string,
-  newStatus: BookingStatus
+  newStatus: BookingStatus,
+  changedByStaffId: string,
+  note?: string
 ) {
   const booking = await prisma.booking.findUnique({ where: { id } });
   if (!booking) throw new NotFoundError("Booking not found");
@@ -65,9 +75,12 @@ export async function updateBookingStatus(
     );
   }
 
-  return prisma.booking.update({
-    where: { id },
-    data: { status: newStatus },
-    include: ADMIN_BOOKING_INCLUDE,
-  });
+  await prisma.$transaction([
+    prisma.booking.update({ where: { id }, data: { status: newStatus } }),
+    prisma.bookingStatusEvent.create({
+      data: { bookingId: id, status: newStatus, changedByStaffId, note: note ?? null },
+    }),
+  ]);
+
+  return prisma.booking.findUniqueOrThrow({ where: { id }, include: ADMIN_BOOKING_INCLUDE });
 }

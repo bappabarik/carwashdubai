@@ -25,6 +25,7 @@ import timeSlotsRoutes from "./modules/time-slots/time-slots.routes";
 import timeSlotsAdminRoutes from "./modules/time-slots/time-slots-admin.routes";
 import bookingsAdminRoutes from "./modules/bookings/bookings-admin.routes";
 import usersRoutes from "./modules/users/users.routes";
+import cancellationRequestsRoutes from "./modules/cancellation-requests/cancellation-requests.routes";
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -82,6 +83,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(servicesAdminRoutes, { prefix: "/api/backoffice" });
   await app.register(timeSlotsAdminRoutes, { prefix: "/api/backoffice" });
   await app.register(bookingsAdminRoutes, { prefix: "/api/backoffice" });
+  await app.register(cancellationRequestsRoutes, { prefix: "/api/backoffice" });
 
   return app;
 }
