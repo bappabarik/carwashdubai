@@ -46,16 +46,11 @@ enum BookingStatus {
   pending
   confirmed
   staff_assigned
-  arriving
+  on_the_way
+  arrived
   in_progress
   completed
   cancelled
-}
-
-enum CancellationRequestStatus {
-  pending
-  approved
-  rejected
 }
 
 enum PaymentStatus {
@@ -78,23 +73,87 @@ enum StaffRole {
   calling_agent
 }
 
-// ─────────────────────────────────────────────
-// Time slots
-// ─────────────────────────────────────────────
+enum PilotStatus {
+  active
+  inactive
+}
+
+// A service-coverage area, drawn as a polygon on a map in the backoffice.
+// A booking's address must fall inside an active zone's boundary for the
+// service to be offered there. Time slot capacity is defined per zone, not
+// globally - two zones can have completely different schedules/capacity.
+model Zone {
+  id        String   @id @default(uuid())
+  name      String
+  code      String   @unique
+  // GeoJSON Polygon: { type: "Polygon", coordinates: [[[lng,lat], [lng,lat], ...]] }
+  boundary  Json
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  timeSlotTemplates TimeSlotTemplate[]
+  bookings          Booking[]
+  assets            Asset[]
+  pilots            Pilot[]
+
+  @@map("zones")
+}
+
+// A physical van/equipment unit that can be assigned to a booking alongside
+// a pilot. Optional on a booking until ops manually assigns one.
+model Asset {
+  id          String   @id @default(uuid())
+  name        String
+  plateNumber String?  @unique @map("plate_number")
+  zoneId      String?  @map("zone_id")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  zone     Zone?     @relation(fields: [zoneId], references: [id])
+  bookings Booking[]
+
+  @@index([zoneId])
+  @@map("assets")
+}
+
+// A field technician who performs the wash. Deliberately separate from
+// StaffMember (backoffice accounts) - pilots don't log into the backoffice;
+// they'll eventually get their own dedicated pilot app (future PRD).
+model Pilot {
+  id          String      @id @default(uuid())
+  pilotCode   String      @unique @map("pilot_code")
+  firstName   String      @map("first_name")
+  lastName    String      @map("last_name")
+  email       String      @unique
+  phoneNumber String      @map("phone_number")
+  zoneId      String?     @map("zone_id")
+  status      PilotStatus @default(active)
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  zone     Zone?     @relation(fields: [zoneId], references: [id])
+  bookings Booking[]
+
+  @@index([zoneId])
+  @@map("pilots")
+}
 
 model TimeSlotTemplate {
   id        String   @id @default(uuid())
+  zoneId    String   @map("zone_id")
   dayOfWeek Int      @map("day_of_week") // 0 = Sunday ... 6 = Saturday
   startTime String   @map("start_time") // "09:00"
   endTime   String   @map("end_time") // "10:00"
-  capacity  Int      @default(1) // how many concurrent bookings this slot can take
+  capacity  Int      @default(1) // how many concurrent bookings this slot can take, in this zone
   isActive  Boolean  @default(true) @map("is_active")
   createdAt DateTime @default(now()) @map("created_at")
 
+  zone     Zone      @relation(fields: [zoneId], references: [id], onDelete: Cascade)
   bookings Booking[]
 
-  @@unique([dayOfWeek, startTime, endTime])
-  @@index([dayOfWeek])
+  @@unique([zoneId, dayOfWeek, startTime, endTime])
+  @@index([zoneId, dayOfWeek])
   @@map("time_slot_templates")
 }
 
@@ -151,6 +210,45 @@ model RefreshToken {
 }
 
 // ─────────────────────────────────────────────
+// Backoffice (staff / admin) - fully separate from customer auth
+// ─────────────────────────────────────────────
+
+model StaffMember {
+  id           String     @id @default(uuid())
+  email        String     @unique
+  passwordHash String     @map("password_hash")
+  name         String
+  phoneNumber  String?    @map("phone_number")
+  role         StaffRole
+  employeeId   String?    @unique @map("employee_id")
+  status       UserStatus @default(active)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  refreshTokens StaffRefreshToken[]
+  statusEvents  BookingStatusEvent[]
+  cancellationReviews CancellationRequest[]
+
+  @@map("staff_members")
+}
+
+model StaffRefreshToken {
+  id         String     @id @default(uuid())
+  staffId    String     @map("staff_id")
+  tokenHash  String     @map("token_hash")
+  deviceId   String     @map("device_id")
+  deviceType String     @map("device_type") // "web" for backoffice, unlike customer's ios/android
+  expiresAt  DateTime   @map("expires_at")
+  revoked    Boolean    @default(false)
+  createdAt  DateTime   @default(now()) @map("created_at")
+
+  staff StaffMember @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([staffId])
+  @@map("staff_refresh_tokens")
+}
+
+// ─────────────────────────────────────────────
 // Profile
 // ─────────────────────────────────────────────
 
@@ -174,45 +272,6 @@ model Address {
   @@map("addresses")
 }
 
-// ─────────────────────────────────────────────
-// Back office
-// ─────────────────────────────────────────────
-
-model StaffMember {
-     id           String     @id @default(uuid())
-     email        String     @unique
-     passwordHash String     @map("password_hash")
-     name         String
-     phoneNumber  String?    @map("phone_number")
-     role         StaffRole
-     employeeId   String?    @unique @map("employee_id")
-     status       UserStatus @default(active)
-     createdAt    DateTime   @default(now()) @map("created_at")
-     updatedAt    DateTime   @updatedAt @map("updated_at")
-
-     refreshTokens StaffRefreshToken[] 
-     statusEvents        BookingStatusEvent[]
-     cancellationReviews CancellationRequest[]
-
-     @@map("staff_members")
-   }
-
-   model StaffRefreshToken {
-     id         String     @id @default(uuid())
-     staffId    String     @map("staff_id")
-     tokenHash  String     @map("token_hash")
-     deviceId   String     @map("device_id")
-     deviceType String     @map("device_type")
-     expiresAt  DateTime   @map("expires_at")
-     revoked    Boolean    @default(false)
-     createdAt  DateTime   @default(now()) @map("created_at")
-
-     staff StaffMember @relation(fields: [staffId], references: [id], onDelete: Cascade)
-
-     @@index([staffId])
-     @@map("staff_refresh_tokens")
-   }
-
 model Car {
   id          String   @id @default(uuid())
   userId      String   @map("user_id")
@@ -225,7 +284,7 @@ model Car {
   isDefault   Boolean  @default(false) @map("is_default")
   createdAt   DateTime @default(now()) @map("created_at")
 
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   bookingCars BookingCar[]
 
   @@index([userId])
@@ -282,10 +341,13 @@ model Booking {
   bookingNumber      String        @unique @map("booking_number")
   userId             String        @map("user_id")
   addressId          String        @map("address_id")
+  zoneId             String        @map("zone_id")
   timeSlotTemplateId String        @map("time_slot_template_id")
+  pilotId            String?       @map("pilot_id")
+  assetId            String?       @map("asset_id")
   status             BookingStatus @default(pending)
   scheduledDate      DateTime      @map("scheduled_date") @db.Date
-  scheduledSlot      String        @map("scheduled_time_slot") // display snapshot, e.g. "09:00 - 10:00"
+  scheduledSlot      String        @map("scheduled_time_slot") // display snapshot, e.g. "09:00 - 10:00" - kept even if the template later changes
   subtotal           Decimal       @db.Decimal(10, 2)
   discount           Decimal       @default(0) @db.Decimal(10, 2)
   total              Decimal       @db.Decimal(10, 2)
@@ -295,20 +357,27 @@ model Booking {
   createdAt          DateTime      @default(now()) @map("created_at")
   updatedAt          DateTime      @updatedAt @map("updated_at")
 
-  user             User             @relation(fields: [userId], references: [id])
-  address          Address          @relation(fields: [addressId], references: [id])
-  timeSlotTemplate TimeSlotTemplate @relation(fields: [timeSlotTemplateId], references: [id])
-  cars             BookingCar[]
+  user                User                 @relation(fields: [userId], references: [id])
+  address             Address              @relation(fields: [addressId], references: [id])
+  zone                Zone                 @relation(fields: [zoneId], references: [id])
+  timeSlotTemplate    TimeSlotTemplate     @relation(fields: [timeSlotTemplateId], references: [id])
+  pilot               Pilot?               @relation(fields: [pilotId], references: [id])
+  asset               Asset?               @relation(fields: [assetId], references: [id])
+  cars                BookingCar[]
   statusEvents        BookingStatusEvent[]
   cancellationRequest CancellationRequest?
 
   @@index([userId])
   @@index([status])
+  @@index([zoneId])
   @@index([scheduledDate])
   @@index([scheduledDate, timeSlotTemplateId])
   @@map("bookings")
 }
 
+// One row per car included in a booking - lets a single checkout cover
+// multiple cars, each with its own services/price/duration, while still
+// sharing one address/time-slot/pilot visit.
 model BookingCar {
   id              String  @id @default(uuid())
   bookingId       String  @map("booking_id")
@@ -342,18 +411,24 @@ model BookingItem {
 // powers the "timeline" view for both customers and admin, not just the
 // current status field.
 model BookingStatusEvent {
-  id               String        @id @default(uuid())
-  bookingId        String        @map("booking_id")
-  status           BookingStatus
-  note             String?
-  changedByStaffId String?       @map("changed_by_staff_id")
-  createdAt        DateTime      @default(now()) @map("created_at")
+  id                String        @id @default(uuid())
+  bookingId         String        @map("booking_id")
+  status            BookingStatus
+  note              String?
+  changedByStaffId  String?       @map("changed_by_staff_id")
+  createdAt         DateTime      @default(now()) @map("created_at")
 
-  booking        Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  changedByStaff StaffMember? @relation(fields: [changedByStaffId], references: [id])
+  booking         Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  changedByStaff  StaffMember? @relation(fields: [changedByStaffId], references: [id])
 
   @@index([bookingId])
   @@map("booking_status_events")
+}
+
+enum CancellationRequestStatus {
+  pending
+  approved
+  rejected
 }
 
 model CancellationRequest {
@@ -367,7 +442,7 @@ model CancellationRequest {
   createdAt         DateTime                  @default(now()) @map("created_at")
   reviewedAt        DateTime?                 @map("reviewed_at")
 
-  booking         Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  booking        Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   reviewedByStaff StaffMember? @relation(fields: [reviewedByStaffId], references: [id])
 
   @@map("cancellation_requests")
